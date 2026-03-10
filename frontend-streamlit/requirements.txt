@@ -1,0 +1,7 @@
+# LungCare Triage — Frontend Dependencies
+# Install with: pip install -r requirements.txt
+
+streamlit>=1.33.0     # Web dashboard framework
+requests>=2.31.0      # HTTP client for calling FastAPI
+pandas>=2.0.0         # Dataframe for scan history table
+python-dotenv>=1.0.0  # .env file loading

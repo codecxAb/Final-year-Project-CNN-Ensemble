@@ -1,5 +1,5 @@
 """
-ai_pipeline.py — LungCare Triage
+ai_pipeline.py — LungCare
 ==================================
 Handles PyTorch model loading and lung nodule risk classification.
 

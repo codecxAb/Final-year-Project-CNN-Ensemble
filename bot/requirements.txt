@@ -1,4 +1,4 @@
-# LungCare Triage — Telegram Bot Dependencies
+# LungCare — Telegram Bot Dependencies
 # Install with: pip install -r requirements.txt
 
 python-telegram-bot>=20.7  # Async Telegram bot framework (v20+ required)

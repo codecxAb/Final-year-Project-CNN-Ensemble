@@ -1,5 +1,5 @@
 """
-start_all.py — LungCare Triage Multi-Service Runner
+start_all.py — LungCare Multi-Service Runner
 ===================================================
 A single script to start the FastAPI backend, Streamlit frontend,
 and Telegram bot simultaneously.
@@ -79,7 +79,7 @@ def stream_reader(pipe, name: str, color: str, log_file):
 # ─── Main Runner ──────────────────────────────────────────────────────────────
 
 def main():
-    print("🚀 Starting LungCare Triage System...")
+    print("🚀 Starting LungCare System...")
     print(f"📂 Logs are being written to the ./logs/ directory\n")
 
     processes = []

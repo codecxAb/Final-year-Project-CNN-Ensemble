@@ -1,5 +1,5 @@
 """
-telegram_bot.py — LungCare Triage Patient Bot
+telegram_bot.py — LungCare Patient Bot
 ===============================================
 Patient-facing Telegram bot using python-telegram-bot v20+ (async).
 
@@ -122,7 +122,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     if success:
         welcome_msg = (
-            f"👋 Hello, *{username}*! Welcome to **LungCare Triage**.\n\n"
+            f"👋 Hello, *{username}*! Welcome to **LungCare**.\n\n"
             "🫁 I'm your personal lung health companion. Your account has been "
             "linked securely to your medical record.\n\n"
             "You can talk to me naturally. Try asking:\n"
@@ -134,7 +134,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         )
     else:
         welcome_msg = (
-            f"👋 Hello, *{username}*! Welcome to **LungCare Triage**.\n\n"
+            f"👋 Hello, *{username}*! Welcome to **LungCare**.\n\n"
             "⚠️ I couldn't link your account right now, but you can still "
             "ask me general questions about lung health.\n\n"
             "Type /help for more information."
@@ -146,7 +146,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/help — Show available commands."""
     help_text = (
-        "🫁 *LungCare Triage Bot — Help*\n\n"
+        "🫁 *LungCare Bot — Help*\n\n"
         "Here's what I can do:\n\n"
         "*/start* — Register your account and get started\n"
         "*/status* — Check your latest scan status\n"

@@ -1,5 +1,5 @@
 """
-app.py — LungCare Triage Dashboard (Redesigned)
+app.py — LungCare Dashboard (Redesigned)
 =================================================
 Folder-based triage workflow for radiologists.
 Light mode · Minimal · 2-color palette · Animated · Age-friendly.
@@ -16,7 +16,7 @@ from datetime import datetime
 API_BASE = "http://localhost:8000"
 
 st.set_page_config(
-    page_title="LungCare Triage",
+    page_title="LungCare",
     page_icon="🫁",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -1184,4 +1184,4 @@ def view_scan_result():
  "NEW_SCAN": view_new_scan, "SCAN_RESULT": view_scan_result
 }.get(st.session_state.view, view_home)()
 
-st.markdown('<div class="footer">🫁 LungCare Triage — For clinical decision support only</div>', unsafe_allow_html=True)
+st.markdown('<div class="footer">🫁 LungCare — For clinical decision support only</div>', unsafe_allow_html=True)

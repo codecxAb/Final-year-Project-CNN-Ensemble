@@ -1,6 +1,6 @@
-# LungCare Triage: Lung Cancer Detection with Ensemble CNN Models
+# LungCare: Lung Cancer Detection with Ensemble CNN Models
 
-LungCare Triage is an advanced, full-stack predictive web application designed to aid medical professionals and radiologists in early lung cancer detection from 3D CT Scans. 
+LungCare is an advanced, full-stack predictive web application designed to aid medical professionals and radiologists in early lung cancer detection from 3D CT Scans. 
 
 The core predictive engine leverages an **Ensemble of 3D Convolutional Neural Networks (ResNet-3D, DenseNet-3D, VGG-3D)**, aggregated via soft-voting probabilities to maximize sensitivity and reduce false positives across malignant nodules.
 

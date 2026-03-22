@@ -1,5 +1,5 @@
 """
-document_parser.py — LungCare Triage Multimodal Engine
+document_parser.py — LungCare Multimodal Engine
 ======================================================
 Handles data extraction from historical patient records.
 """

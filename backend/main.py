@@ -1,7 +1,7 @@
 """
-main.py — LungCare Triage Backend
+main.py — LungCare Backend
 ====================================
-FastAPI application — the central hub of the LungCare Triage system.
+FastAPI application — the central hub of the LungCare system.
 
 Routes:
     POST /api/analyze           → Run AI risk scoring on a patient scan
@@ -41,7 +41,7 @@ init_db()
 
 # ─── FastAPI App ──────────────────────────────────────────────────────────────
 app = FastAPI(
-    title="🫁 LungCare Triage API",
+    title="🫁 LungCare API",
     description=(
         "Production-ready Radiology Triage & Monitoring System.\n\n"
         "Built on: **FastAPI** + **PyTorch 3D CNN** + **LangGraph/Groq** + **SQLite**.\n\n"
@@ -739,7 +739,7 @@ def get_stats(db: Session = Depends(get_db)):
 @app.get("/health", tags=["System"], summary="Health check")
 def health_check():
     """Simple heartbeat endpoint for uptime monitoring."""
-    return {"status": "ok", "service": "LungCare Triage API", "version": "1.0.0"}
+    return {"status": "ok", "service": "LungCare API", "version": "1.0.0"}
 
 
 # ─── Dev Runner ───────────────────────────────────────────────────────────────

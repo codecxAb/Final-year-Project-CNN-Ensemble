@@ -1,5 +1,5 @@
 """
-langgraph_agent.py — LungCare Triage
+langgraph_agent.py — LungCare
 ======================================
 Two LangGraph StateGraphs powered by Groq (llama3-8b-8192).
 

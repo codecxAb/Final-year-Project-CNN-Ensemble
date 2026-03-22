@@ -1,5 +1,5 @@
 """
-database.py — LungCare Triage
+database.py — LungCare
 ==============================
 SQLAlchemy SQLite database setup and ORM models.
 

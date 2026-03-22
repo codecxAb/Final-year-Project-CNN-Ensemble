@@ -36,7 +36,6 @@ venv.bak/
 
 # Project specifics
 machine_learning/data/
-*.pth
 *.mhd
 *.raw
 *.zraw

@@ -559,151 +559,190 @@ h1, h2, h3, h4 { color: #FAFAFA !important; }
 # 3D LUNG VISUALIZATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
+import pathlib as _pathlib
+from PIL import Image, ImageFilter
+import numpy as np
+import plotly.graph_objects as go
+
+@st.cache_data(show_spinner=False)
+def load_glb_mesh(scale=20.0, _force_cache_invalidation=1):
+    try:
+        import trimesh
+        _path = _pathlib.Path(__file__).parent / "assets" / "lungs.glb"
+        if not _path.exists():
+            return None, None
+        mesh = trimesh.load(str(_path), force='mesh')
+        mesh.apply_scale(scale)
+        return mesh.vertices, mesh.faces
+    except Exception as e:
+        print(f"Error loading glb: {e}")
+        return None, None
+
 def render_3d_lung(x_coord=256, tumor_mm=5.0, show_previous=False, prev_size=None):
-    """Render highly realistic medical 3D lung with nodule."""
     fig = go.Figure()
 
-    # High resolution mesh for organic realism
-    u = np.linspace(0, 2 * np.pi, 120)
-    v = np.linspace(0, np.pi, 120)
-    U, V = np.meshgrid(u, v)
-
-    # Biological tissue lighting configuration
-    flesh_lighting = dict(
-        ambient=0.4,
-        diffuse=0.7,
-        specular=0.1,
-        roughness=0.8,
-        fresnel=4.0
-    )
-
-    # Medical tissue colorscale (CT volume render style - translucent gray/pink)
-    lung_colorscale = [
-        [0.0, 'rgba(180, 180, 190, 0.05)'], 
-        [0.5, 'rgba(200, 170, 170, 0.15)'], 
-        [1.0, 'rgba(220, 190, 190, 0.25)']
-    ]
-
-    # Right lung (organic deformations to simulate lobes)
-    rx, ry, rz = 3.2, 4.6, 5.8
-    x_r = rx * np.sin(V) * np.cos(U) + 3.8
-    y_r = ry * np.sin(V) * np.sin(U)
-    z_r = rz * np.cos(V)
-    # Complex noise for biological surface irregularity
-    deform1 = 0.2 * np.sin(3*U) * np.sin(2*V) 
-    deform2 = 0.15 * np.sin(5*U) * np.cos(3*V)
-    deform3 = 0.05 * np.sin(10*U) * np.cos(8*V)
-    deform = deform1 + deform2 + deform3
+    vertices, faces = load_glb_mesh(scale=20.0, _force_cache_invalidation=1)
+    has_mesh = vertices is not None
     
-    # Flatten the inner medial surface where the heart sits (cardiac notch area)
-    medial_flattening = np.clip(np.cos(U) * np.sin(V), -1, 0) * 1.5
-    x_r += deform + medial_flattening
-    y_r += deform * 0.8
-    z_r += deform * 0.5
+    if has_mesh:
+        # Decrease lung opacity 10-20% to see nodule inside clearly
+        lung_opacity = 0.15
+        
+        fig.add_trace(go.Mesh3d(
+            x=vertices[:, 0],
+            y=vertices[:, 1],
+            z=vertices[:, 2],
+            i=faces[:, 0],
+            j=faces[:, 1],
+            k=faces[:, 2],
+            opacity=lung_opacity,
+            color='rgba(250, 180, 180, 1.0)', # light red/pink for healthy lung base
+            hoverinfo='skip',
+            showlegend=False,
+            name='Lungs',
+            lighting=dict(ambient=0.6, diffuse=0.6, specular=0.1, roughness=0.8),
+        ))
 
-    fig.add_trace(go.Surface(
-        x=x_r, y=y_r, z=z_r,
-        colorscale=lung_colorscale,
-        showscale=False, opacity=0.4,
-        lighting=flesh_lighting,
-        contours=dict(x=dict(show=False), y=dict(show=False), z=dict(show=False)),
-        name='Right Lung',
-        hovertemplate="<b>Right Lung</b><extra></extra>"
-    ))
-
-    # Left lung
-    lx, ly, lz = 3.0, 4.3, 5.5
-    x_l = lx * np.sin(V) * np.cos(U) - 3.8
-    y_l = ly * np.sin(V) * np.sin(U)
-    z_l = lz * np.cos(V)
-    deform_l = 0.18 * np.sin(3*U) * np.sin(2*V) + 0.1 * np.sin(4*U) * np.cos(2*V) + 0.05 * np.sin(9*U) * np.cos(7*V)
+    # ── NODULE (TUMOR MASS) attached ──
+    # Map raw 0-512 input into our new X, Y anatomic coordinate scaling
+    norm_x = (x_coord / 512.0)
+    # The new GLB is roughly bounded between X=-9.3 and X=+9.3
+    nodule_x = -9.3 + (norm_x * 18.6)
     
-    # Cardiac notch (Left lung is slightly smaller due to heart)
-    cardiac_notch = np.clip(-np.cos(U) * np.sin(V), -1, 0) * 2.5
-    x_l += deform_l + cardiac_notch
-    y_l += deform_l * 0.7
-    z_l += deform_l * 0.5
+    # Estimate Y dynamically
+    nodule_y = 5.0 - (tumor_mm / 30.0)*8.0
+    
+    # Nodule Z: Tumor sits towards the anterior surface
+    nodule_z = 3.0 
 
-    fig.add_trace(go.Surface(
-        x=x_l, y=y_l, z=z_l,
-        colorscale=lung_colorscale,
-        showscale=False, opacity=0.4,
-        lighting=flesh_lighting,
-        contours=dict(x=dict(show=False), y=dict(show=False), z=dict(show=False)),
-        name='Left Lung (Cardiac Notch)',
-        hovertemplate="<b>Left Lung</b><extra></extra>"
-    ))
+    # Render nodule EXACT SIZE (1 plot unit = 1 cm, so tumor_mm / 10 = diameter in cm)
+    nodule_r = (tumor_mm / 10.0) / 2.0
 
-    # Realistic Nodule (Tumor mass)
-    # Map x_coord exactly to correct lung volume
-    if x_coord < 256:
-        # Left lung: roughly x between -5.8 to -1.8
-        nodule_x = (x_coord / 255.0) * 3.5 - 5.5
+    nU, nV = np.meshgrid(np.linspace(0, 2*np.pi, 20), np.linspace(0, np.pi, 20))
+    rng = np.random.default_rng(42)  
+    noise = 0.05 * np.sin(10*nU) * np.sin(8*nV) + 0.02 * rng.standard_normal(nU.shape)
+    nr = nodule_r * (1 + noise)
+
+    nX = nr * np.sin(nV) * np.cos(nU) + nodule_x
+    nY = nr * np.sin(nV) * np.sin(nU) + nodule_y
+    nZ = nr * np.cos(nV) + nodule_z
+
+    if tumor_mm > 8:
+        n_cscale = [[0.0, 'rgba(120,18,18,1.0)'], [1.0, 'rgba(230,40,40,1.0)']]
+    elif tumor_mm > 4:
+        n_cscale = [[0.0, 'rgba(140,80,15,1.0)'], [1.0, 'rgba(240,150,40,1.0)']]
     else:
-        # Right lung: roughly x between 1.8 to 5.8
-        nodule_x = ((x_coord - 256) / 256.0) * 3.5 + 2.0
+        n_cscale = [[0.0, 'rgba(20,100,40,1.0)'],  [1.0,'rgba(60,200,90,1.0)']]
 
-    nodule_r = max(0.3, min(tumor_mm / 6.0, 1.8))
-    
-    # Very high frequency noise for a bumpy, malignant-looking organic mass
-    nU, nV = np.meshgrid(np.linspace(0, 2*np.pi, 60), np.linspace(0, np.pi, 60))
-    noise = 0.15 * np.sin(8*nU) * np.cos(6*nV) + 0.08 * np.sin(15*nU + 5*nV) + 0.05 * np.random.rand(*nU.shape)
-    nr = nodule_r + noise
-
-    # Malignant masses are highly vascularized and dense (dark red/brownish in false-color CT)
-    nodule_colorscale = [[0.0, 'rgba(120, 20, 20, 1.0)'], [1.0, 'rgba(180, 50, 50, 1.0)']]
-    
-    lung_side_name = "Left Lung" if nodule_x < 0 else "Right Lung"
+    lung_label = "Left Lung" if nodule_x < 0 else "Right Lung"
     
     fig.add_trace(go.Surface(
-        x=nr*np.sin(nV)*np.cos(nU) + nodule_x,
-        y=nr*np.sin(nV)*np.sin(nU) + 0.5 + noise*0.5,
-        z=nr*np.cos(nV) + 0.5 + noise*0.5,
-        colorscale=nodule_colorscale,
-        showscale=False, opacity=1.0,
-        lighting=dict(ambient=0.3, diffuse=0.9, specular=0.1, roughness=1.0),
-        contours=dict(x=dict(show=False), y=dict(show=False), z=dict(show=False)),
-        name=f'Malignant Mass ({tumor_mm:.1f}mm)',
-        hovertemplate=f"<b>Malignant Mass</b><br>{tumor_mm:.1f}mm<br>Located in {lung_side_name}<extra></extra>"
+        x=nX, y=nY, z=nZ,
+        surfacecolor=np.ones_like(nr),
+        colorscale=n_cscale,
+        showscale=False,
+        opacity=1.0,
+        name=f'Nodule ({tumor_mm:.1f}mm)',
+        hovertemplate=(
+            f"<b>🔴 Malignant Mass</b><br>"
+            f"Diameter: <b>{tumor_mm:.1f} mm</b><br>"
+            f"Location: <b>Attached Structure</b><br>"
+            f"X: {nodule_x:.1f} cm | Y: {nodule_y:.1f} cm"
+            f"<extra></extra>"
+        ),
     ))
 
-    # Measurement Callout line (Clinical style)
-    fig.add_trace(go.Scatter3d(
-        x=[nodule_x, nodule_x + nodule_r + 1.5], 
-        y=[0.5, 0.5], 
-        z=[0.5, 0.5 + nodule_r + 1.5],
-        mode='lines',
-        line=dict(color='rgba(255,255,255,0.6)', width=2, dash='dot'),
-        showlegend=False,
-        hoverinfo='skip'
-    ))
+    # Blood vessel (Cord) attaching the nodule
+    v_x_base = nodule_x * 0.5  # Heading towards median plane
+    v_y_base = nodule_y + 2.0  # Heading slightly up
+    v_z_base = 0.0             # towards center line depth
+    
+    v_idx = np.linspace(0, 1, 15)
+    
+    vx = nodule_x + (v_x_base - nodule_x) * v_idx + 0.3 * np.sin(v_idx * np.pi)
+    vy = nodule_y + (v_y_base - nodule_y) * v_idx - 0.2 * np.cos(v_idx * np.pi)
+    vz = (nodule_z - nodule_r) + (v_z_base - (nodule_z - nodule_r)) * v_idx + 0.5 * np.sin(v_idx * np.pi)
     
     fig.add_trace(go.Scatter3d(
-        x=[nodule_x + nodule_r + 1.5], y=[0.5], z=[0.5 + nodule_r + 1.5],
-        mode='text',
-        text=[f'Dx: {tumor_mm:.1f}mm | {lung_side_name}'], textposition='top right',
-        textfont=dict(color='#FAFAFA', size=13, family='monospace'),
-        showlegend=False,
-        hoverinfo='skip'
+        x=vx, y=vy, z=vz,
+        mode='lines',
+        line=dict(color='rgba(239, 68, 68, 0.85)', width=8),
+        name="Vascular Cord",
+        hovertemplate="Vascular Cord Attachment<extra></extra>"
     ))
 
+    # ── LAYOUT ──
     fig.update_layout(
-        scene=dict(
-            xaxis=dict(visible=False, range=[-8, 8]),
-            yaxis=dict(visible=False, range=[-7, 7]),
-            zaxis=dict(visible=False, range=[-8, 10]),
-            bgcolor='rgba(10,10,10,0)',
+         scene=dict(
+            xaxis=dict(visible=False, range=[-12, 12]),
+            yaxis=dict(visible=False, range=[-12, 18]),
+            zaxis=dict(visible=False, range=[-8, 8]),
+            bgcolor='rgba(0,0,0,0)',
             camera=dict(
-                eye=dict(x=1.3, y=1.0, z=0.4),
-                up=dict(x=0, y=0, z=1)
+                eye=dict(x=0.0, y=-0.5, z=2.0),
+                up=dict(x=0, y=1, z=0),
+                center=dict(x=0, y=0, z=0),
             ),
-            aspectmode='manual', aspectratio=dict(x=1.2, y=1, z=1.3),
+            aspectmode='data'
         ),
         margin=dict(l=0, r=0, t=0, b=0),
-        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-        height=450, showlegend=False,
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        height=550,
+        showlegend=False,
+        uirevision='lung-mesh',
     )
     return fig
+
+def render_lung_hud(x_coord, tumor_mm, risk_level, lung_label):
+    norm = x_coord / 512.0
+    if norm < 0.5:
+        nX = round(-6.0 + norm * 2.0 / 0.5 * 2.2, 1)
+    else:
+        nX = round(1.5 + (norm - 0.5) * 2.0 / 0.5 * 2.5, 1)
+    nY = round(0.2 + (tumor_mm / 30.0) * -0.9, 1)
+    nZ = round(0.5 - (tumor_mm / 25.0) * 1.2, 1)
+
+    risk_color = {"High": "#EF4444", "Medium": "#F59E0B", "Low": "#22C55E"}.get(risk_level, "#94A3B8")
+
+    st.markdown(f'''
+    <div style="
+        display:grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 0.75rem;
+        background: #111827;
+        border: 1px solid #1F2937;
+        border-radius: 4px;
+        padding: 1rem 1.5rem;
+        font-family: monospace;
+        margin-top: 0.5rem;
+    ">
+        <div>
+            <div style="font-size:0.65rem;color:#6B7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">X (MED–LAT)</div>
+            <div style="font-size:1rem;font-weight:800;color:#22D3EE;">{nX} cm</div>
+        </div>
+        <div>
+            <div style="font-size:0.65rem;color:#6B7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">Y (SUP–INF)</div>
+            <div style="font-size:1rem;font-weight:800;color:#4ADE80;">{nY} cm</div>
+        </div>
+        <div>
+            <div style="font-size:0.65rem;color:#6B7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">Z (ANT–POST)</div>
+            <div style="font-size:1rem;font-weight:800;color:#FBBF24;">{nZ} cm</div>
+        </div>
+        <div>
+            <div style="font-size:0.65rem;color:#6B7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">Lobe</div>
+            <div style="font-size:1rem;font-weight:800;color:#FAFAFA;">{lung_label}</div>
+        </div>
+        <div>
+            <div style="font-size:0.65rem;color:#6B7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">Diameter</div>
+            <div style="font-size:1rem;font-weight:800;color:{risk_color};">{tumor_mm:.1f} mm</div>
+        </div>
+        <div>
+            <div style="font-size:0.65rem;color:#6B7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">Risk</div>
+            <div style="font-size:1rem;font-weight:800;color:{risk_color};">{risk_level.upper()}</div>
+        </div>
+    </div>
+    ''', unsafe_allow_html=True)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -948,8 +987,16 @@ def view_patient():
         if scans:
             latest = scans[-1]
             prev = scans[-2]["tumor_diameter_mm"] if len(scans) > 1 else None
-            fig = render_3d_lung(latest.get("x_coordinate", 256), latest["tumor_diameter_mm"], prev is not None, prev)
+            x_coord = latest.get("x_coordinate", 256)
+            tmm_viz = latest["tumor_diameter_mm"]
+            risk_viz = latest.get("risk_level", "Low")
+            lung_label_viz = "Left Lung" if (x_coord / 512.0) < 0.5 else "Right Lung"
+
+            st.markdown('<div style="background:#0A0D12;border:1px solid #1F2937;border-radius:4px;padding:0.25rem;">', unsafe_allow_html=True)
+            fig = render_3d_lung(x_coord, tmm_viz, prev is not None, prev)
             st.plotly_chart(fig, use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+            render_lung_hud(x_coord, tmm_viz, risk_viz, lung_label_viz)
         else:
             st.info("No scans yet.")
 
@@ -1151,8 +1198,13 @@ def view_scan_result():
     c3d, crpt = st.columns([1, 1])
     with c3d:
         st.markdown('<div class="sh"><div class="sh-icon">🫁</div> 3D Visualization</div>', unsafe_allow_html=True)
-        fig = render_3d_lung(result.get("x_coordinate", 256), tmm)
+        xc_r = result.get("x_coordinate", 256)
+        ll_r = "Left Lung" if (xc_r / 512.0) < 0.5 else "Right Lung"
+        st.markdown('<div style="background:#0A0D12;border:1px solid #1F2937;border-radius:4px;padding:0.25rem;">', unsafe_allow_html=True)
+        fig = render_3d_lung(xc_r, tmm)
         st.plotly_chart(fig, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        render_lung_hud(xc_r, tmm, risk, ll_r)
 
     with crpt:
         st.markdown('<div class="sh"><div class="sh-icon">📝</div> AI Report</div>', unsafe_allow_html=True)

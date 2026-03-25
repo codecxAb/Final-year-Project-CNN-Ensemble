@@ -77,7 +77,9 @@ def _draft_report_node(state: RadiologistState) -> dict:
         "Clinical Indication, Technique, Findings, Impression, Recommendations. "
         "Be objective, evidence-based, and clinically precise. "
         "Do NOT make definitive diagnoses — use phrases like 'suspicious for', 'consistent with'. "
-        "Output in clean markdown format."
+        "Output in clean, structured markdown format. "
+        "IMPORTANT: Do NOT wrap the entire report in a markdown code block (no ```markdown tags). "
+        "Just output the markdown text directly."
     )
 
     user_prompt = (
@@ -92,10 +94,12 @@ def _draft_report_node(state: RadiologistState) -> dict:
     logger.info(f"[Graph 1] Drafting report for {state['patient_name']} (risk={state['risk_level']})")
     response = llm.invoke([SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)])
 
-    # DeepSeek / R1 models often return <think>...</think> blocks containing their reasoning.
-    # We strip these out so they don't appear in the final clinical report.
+    # Strip think tags and any markdown code block wrap delimiters
     import re
-    cleaned_draft = re.sub(r'<think>.*?</think>\n?', '', response.content, flags=re.DOTALL).strip()
+    cleaned_draft = re.sub(r'<think>.*?</think>\n?', '', response.content, flags=re.DOTALL)
+    # Remove markers like ```markdown or ``` at start/end or anywhere
+    cleaned_draft = re.sub(r'```(?:markdown|md)?\n?', '', cleaned_draft, flags=re.IGNORECASE)
+    cleaned_draft = cleaned_draft.strip()
 
     return {"report_draft": cleaned_draft, "reviewed": False}
 
@@ -290,9 +294,12 @@ def _patient_response_node(state: PatientSupportState) -> dict:
     logger.info("[Graph 2] Generating patient support response via Groq...")
     response = llm.invoke(messages_to_send)
 
-    # Clean up any <think> blocks if the LLM (like DeepSeek) returns reasoning
+    # Clean up any <think> blocks and markdown wrappers
     import re
-    cleaned_response = re.sub(r'<think>.*?</think>\n?', '', response.content, flags=re.DOTALL).strip()
+    cleaned_response = re.sub(r'<think>.*?</think>\n?', '', response.content, flags=re.DOTALL)
+    cleaned_response = re.sub(r'```markdown\n?', '', cleaned_response, flags=re.IGNORECASE)
+    cleaned_response = re.sub(r'```\n?', '', cleaned_response)
+    cleaned_response = cleaned_response.strip()
 
     return {"safe_response": cleaned_response}
 
@@ -435,7 +442,10 @@ def _synthesize_history_node(state: PatientSummaryState) -> dict:
     response = llm.invoke([SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)])
     
     import re
-    cleaned_summary = re.sub(r'<think>.*?</think>\n?', '', response.content, flags=re.DOTALL).strip()
+    cleaned_summary = re.sub(r'<think>.*?</think>\n?', '', response.content, flags=re.DOTALL)
+    cleaned_summary = re.sub(r'```markdown\n?', '', cleaned_summary, flags=re.IGNORECASE)
+    cleaned_summary = re.sub(r'```\n?', '', cleaned_summary)
+    cleaned_summary = cleaned_summary.strip()
     
     return {"unified_summary": cleaned_summary}
 

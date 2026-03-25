@@ -21,8 +21,12 @@ import os
 from datetime import datetime, date
 from typing import List, Optional
 
+import shutil
+import tempfile
 from dotenv import load_dotenv, find_dotenv
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -633,7 +637,9 @@ def get_patient_summary(patient_id: int, refresh: bool = False, db: Session = De
 
 from pydantic import BaseModel
 class RemarksRequest(BaseModel):
-    remarks: str
+    status: Optional[str] = None
+    doctor_notes: Optional[str] = None
+    remarks: Optional[str] = None  # for backward compatibility if any
 
 @app.get("/api/scans/{scan_id}", tags=["Clinician API"], summary="Get scan details including AI report")
 def get_scan(scan_id: int, db: Session = Depends(get_db)):
@@ -655,14 +661,21 @@ def get_scan(scan_id: int, db: Session = Depends(get_db)):
 
 @app.post("/api/scans/{scan_id}/remarks", tags=["Data Room"], summary="Save doctor notes")
 def save_remarks(scan_id: int, payload: RemarksRequest, db: Session = Depends(get_db)):
-    """Appends final radiologist physician notes to the scan record."""
+    """Appends final radiologist physician notes to the scan record and optionally updates status."""
     scan = db.get(ScanRecord, scan_id)
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found.")
         
-    scan.doctor_notes = payload.remarks
+    if payload.doctor_notes is not None:
+        scan.doctor_notes = payload.doctor_notes
+    elif payload.remarks is not None:
+        scan.doctor_notes = payload.remarks
+        
+    if payload.status:
+        scan.status = payload.status
+        
     db.commit()
-    logger.info(f"[main] Saved doctor notes for scan {scan_id}")
+    logger.info(f"[main] Saved doctor notes/status for scan {scan_id}")
     return {"status": "success"}
 
 
@@ -733,6 +746,42 @@ def get_stats(db: Session = Depends(get_db)):
         "recent_scans": recent_scans,
     }
 
+
+# ─── Data Backup ──────────────────────────────────────────────────────────────
+
+@app.get("/api/backup", tags=["System"], summary="Download patient DB and uploads as a ZIP")
+def download_backup():
+    """Generates a ZIP archive of the `lungcare.db` and the `uploads` directory, returning it as a downloadable file."""
+    temp_dir = tempfile.mkdtemp()
+    
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    db_path = os.path.join(base_dir, "lungcare.db")
+    uploads_dir = os.path.join(base_dir, "uploads")
+    
+    # Copy files
+    if os.path.exists(db_path):
+        shutil.copy2(db_path, temp_dir)
+    if os.path.exists(uploads_dir):
+        dest_uploads = os.path.join(temp_dir, "uploads")
+        shutil.copytree(uploads_dir, dest_uploads)
+        
+    # Create ZIP archive
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    zip_base_name = os.path.join(tempfile.gettempdir(), f"lungcare_backup_{timestamp}")
+    zip_file_path = shutil.make_archive(zip_base_name, 'zip', temp_dir)
+    
+    # Cleanup task
+    def cleanup():
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        if os.path.exists(zip_file_path):
+            os.remove(zip_file_path)
+            
+    return FileResponse(
+        path=zip_file_path,
+        media_type="application/zip",
+        filename=f"lungcare_backup_{timestamp}.zip",
+        background=BackgroundTask(cleanup)
+    )
 
 # ─── Health Check ─────────────────────────────────────────────────────────────
 

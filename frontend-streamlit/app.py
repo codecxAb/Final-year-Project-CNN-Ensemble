@@ -798,6 +798,16 @@ def initials(name):
     parts = name.split()
     return (parts[0][0] + (parts[1][0] if len(parts) > 1 else "")).upper()
 
+def clean_report(text):
+    if not text: return ""
+    import re
+    # Remove leading/trailing markdown code block markers
+    text = re.sub(r'^```(?:markdown|md)?\n?', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\n?```$', '', text)
+    # Also catch any internal ones that might be misplaced
+    text = re.sub(r'```(?:markdown|md)?', '', text, flags=re.IGNORECASE)
+    return text.strip()
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # BRAND HEADER (reusable)
@@ -822,12 +832,17 @@ def brand(subtitle="Clinical Triage System"):
 def view_home():
     brand()
 
-    # New Scan CTA
-    _, center, _ = st.columns([3, 2, 3])
-    with center:
+    # Top Actions
+    _, c1, c2, _ = st.columns([2, 2, 2, 2])
+    with c1:
         if st.button("🔬  New Scan", use_container_width=True, type="primary"):
             nav("NEW_SCAN")
             st.rerun()
+    with c2:
+        st.markdown(
+            f'<a href="{API_BASE}/api/backup" download target="_blank" style="display:inline-block; width:100%; text-align:center; padding:0.6rem 1.2rem; background:#171717; color:#FAFAFA; border:1px solid #3F3F46; border-radius:4px; text-decoration:none; font-weight:700; font-family:\'Inter\', sans-serif; text-transform:uppercase; letter-spacing:1px; font-size:0.85rem; transition:all 0.2s;">💾 Backup DB</a>',
+            unsafe_allow_html=True
+        )
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -1027,9 +1042,11 @@ def view_patient():
 
         if latest.get("has_report"):
             report_data = api_get(f"/api/scans/{sid}")
-            if report_data and report_data.get("ai_report_draft"):
-                with st.expander("View Report", expanded=True):
-                    st.markdown(report_data["ai_report_draft"])
+            if report_data:
+                draft = report_data.get("ai_report_draft") or report_data.get("report_draft")
+                if draft:
+                    with st.expander("View Report", expanded=True):
+                        st.markdown(clean_report(draft))
         else:
             if st.button("🤖 Generate Report", key="gr"):
                 with st.spinner("Generating via LangGraph + Groq..."):
@@ -1210,7 +1227,7 @@ def view_scan_result():
         rpt = result.get("report", "")
         if rpt:
             with st.expander("View Report", expanded=True):
-                st.markdown(rpt)
+                st.markdown(clean_report(rpt))
         else:
             st.info("Report pending.")
 

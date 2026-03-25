@@ -361,7 +361,7 @@ st.markdown("""
     width: 28px;
     height: 28px;
     border-radius: 4px;
-    background: #171717;
+    background: transparent;
     border: 1px solid #22D3EE;
     color: #22D3EE;
     font-weight: 900;
@@ -370,11 +370,10 @@ st.markdown("""
     flex-shrink: 0;
 }
 .step-section {
-    background: #171717;
-    border: 1px solid #27272A;
-    border-radius: 4px;
-    padding: 2rem;
-    margin-bottom: 1rem;
+    background: transparent;
+    border: none;
+    padding: 0.5rem 0;
+    margin-bottom: 2rem;
     animation: fadeInUp 0.4s ease-out both;
 }
 
